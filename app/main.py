@@ -1,5 +1,7 @@
 import socket
 import struct
+import dns.resolver
+import dns.rdatatype
 
 
 def parse_question_section(buf, offset):
@@ -15,6 +17,7 @@ def parse_question_section(buf, offset):
         if length == 0:
             offset += 1
             break
+        # extracts the domain name
         domain_name.append(buf[offset + 1:offset + 1 + length].decode())
         offset += length + 1
 
@@ -26,6 +29,38 @@ def parse_question_section(buf, offset):
 
     return domain_name, qtype, qclass, question_section_bytes
 
+def resolve_domain(domain_name, qtype):
+    try:
+        # using DNS resolver
+        answers = dns.resolver.resolve(domain_name, dns.rdatatype.to_text(qtype))
+        return answers
+    except dns.resolver.NXDOMAIN:
+        return None
+    except dns.resolver.NoAnswer:
+        return None
+def construct_answer_section(domain_name, qtype, qclass, answers):
+    answer_section = b""
+
+    if answers:
+        # Get the RRset for the answer
+        rrset = answers.rrset
+        packed_name = rrset.name.to_wire()  # Get the packed name from the RRset
+        ttl = rrset.ttl  # Get the TTL from the RRset
+        # Iterate through each rdata in the RRset
+        for rdata in rrset:
+            rdata_wire = rdata.to_wire()  # Serialize the RDATA
+            # Append the packed domain name, qtype, qclass, ttl, and length of RDATA
+            answer_section += packed_name
+            answer_section += struct.pack("!HHIH",
+                                          qtype,        # Type (A = 1)
+                                          qclass,       # Class (IN = 1)
+                                          ttl,          # TTL from the RRset
+                                          len(rdata_wire))  # Length of RDATA
+            answer_section += rdata_wire
+
+    return answer_section
+
+
 
 def main():
     print("Logs from your program will appear here!")
@@ -35,6 +70,7 @@ def main():
     
     while True:
         try:
+            # 512 is buffer size
             buf, source = udp_socket.recvfrom(512)
             print(f"Received data from {source}")
 
@@ -44,14 +80,20 @@ def main():
             domain_name, qtype, qclass, question_section = parse_question_section(buf, 12)
             print(f"Domain Name: {domain_name}, Type: {qtype}, Class: {qclass}")
 
-            # Prepare a response header (same Transaction ID and basic flags)
-            response_header = struct.pack("!6H", header_info[0], 0x8180, 1, 0, 0, 0)
+            answers = resolve_domain(domain_name, qtype)
+
+            answer_section = construct_answer_section(domain_name, qtype, qclass, answers)
+
+            # Prepare response header
+            response_flags = 0x8180 if answers else 0x8183  # No such name if no answers
+            ancount = len(answers) if answers else 0
+            response_header = struct.pack("!6H", header_info[0], response_flags, 1, ancount, 0, 0)
 
             # Construct the response with the header and question section
-            response = response_header + question_section
+            response = response_header + question_section + answer_section
     
             udp_socket.sendto(response, source)
-            print(f'Sending: {response}')
+            print(f'Sending responce of {len(response)} bytes')
         except Exception as e:
             print(f"Error receiving data: {e}")
             break
