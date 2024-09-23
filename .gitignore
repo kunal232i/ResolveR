@@ -1,1 +1,3 @@
 dns_env/
+__pycache__/
+.archived/
