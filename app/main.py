@@ -1,36 +1,43 @@
-import socket
 import logging
 from dns_header import DNSHeader
 from dns_question import DNSQuestion
 from dns_resolver import DNSResolver
 import logging_config
+import asyncio
 
 logger = logging.getLogger(__name__)
 
-class DNSServer:
+class DNSProtocol(asyncio.DatagramProtocol):
+    def __init__(self, resolver):
+        self.resolver = resolver
+
+    def connection_made(self, transport):
+        self.transport = transport
+        logger.info('DNS Server is now listening for incoming requests')
+
+    def datagram_received(self, data, addr):
+        logger.info(f'Received data from {addr}')
+        header = DNSHeader.from_bytes(data[:12])
+        question = DNSQuestion.from_bytes(data[12:])
+        response = self.resolver.resolve(header, question)
+        self.transport.sendto(response, addr)
+
+class AsyncDNSServer:
     def __init__(self, host='127.0.0.1', port=2053):
         self.host = host
         self.port = port
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.socket.bind((self.host, self.port))
         self.resolver = DNSResolver()
 
-    def run(self):
+    async def run(self):
+        loop = asyncio.get_event_loop()
+        listen = loop.create_datagram_endpoint(
+            lambda: DNSProtocol(self.resolver),
+            local_addr=(self.host, self.port)
+        )
+        transport, protocol = await listen
         logger.info(f"DNS Server running on {self.host}:{self.port}")
-        while True:
-            data, addr = self.socket.recvfrom(512)
-            response = self.handle_query(data)
-            self.socket.sendto(response, addr)
-
-    def handle_query(self, data):
-        header = DNSHeader.from_bytes(data[:12])
-        question = DNSQuestion.from_bytes(data[12:])
-        
-        logger.info(f"Received query for {question.qname}")
-
-        response = self.resolver.resolve(header, question)
-        return response
+        await asyncio.sleep(3600)  # Keep server running
 
 if __name__ == "__main__":
-    server = DNSServer()
-    server.run()
+    server = AsyncDNSServer()
+    asyncio.run(server.run())
