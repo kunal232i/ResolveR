@@ -1,3 +1,4 @@
 dns_env/
 __pycache__/
 .archived/
+dns_server.log
