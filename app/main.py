@@ -8,7 +8,16 @@ import time
 
 logger = logging.getLogger(__name__)
 
-BLACKLIST = ["malicious.com", "phishing.com"]
+def load_blacklist(file_path):
+    try:
+        with open(file_path, 'r') as file:
+            return set(line.split()[1].strip() for line in file if len(line.split()) > 1)
+    except FileNotFoundError:
+        logger.error(f"Blacklist file not found at {file_path}")
+        return set()
+
+BLACKLIST_FILE = "blacklist.txt"
+BLACKLIST = load_blacklist(BLACKLIST_FILE)
 
 RATE_LIMIT = 5
 client_query_rate = {}
