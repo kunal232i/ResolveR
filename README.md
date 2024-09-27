@@ -4,6 +4,7 @@ This project is a custom DNS server created for learning purposes. It implements
 
 ## Demo
 
+https://github.com/user-attachments/assets/82725836-ecdb-4e23-a561-32a79bc63a31
 
 ## Features
 - Implements DNS protocol with UDP using asyncio for handling concurrent requests.
@@ -13,7 +14,7 @@ This project is a custom DNS server created for learning purposes. It implements
 
 ## How It Works (Image Explanation)
 
-
+![DNS_Diagram](https://github.com/user-attachments/assets/75459aff-e2df-4e7b-8921-aaabd1b6aa94)
 
 The image above illustrates the DNS resolution process:
 1. **Stub Resolver:** Your laptop/PC sends a DNS query for `a.example.com` to a recursive DNS server.
